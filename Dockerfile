@@ -38,16 +38,26 @@
 
 # CMD ["node", "dist/index.js"]
 
+# -------------------------
+# Base image
+# -------------------------
 FROM node:22-bookworm
 
-# Install Bun (required for build scripts)
+# -------------------------
+# Install Bun (for build scripts) and Corepack
+# -------------------------
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
-
 RUN corepack enable
 
+# -------------------------
+# Working directory
+# -------------------------
 WORKDIR /app
 
+# -------------------------
+# Optional system packages
+# -------------------------
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
 RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       apt-get update && \
@@ -56,28 +66,48 @@ RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
     fi
 
+# -------------------------
+# Copy project files for dependency install
+# -------------------------
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY ui/package.json ./ui/package.json
 COPY patches ./patches
 COPY scripts ./scripts
 
+# -------------------------
+# Install dependencies
+# -------------------------
 RUN pnpm install --frozen-lockfile
 
+# -------------------------
+# Copy entire repo
+# -------------------------
 COPY . .
+
+# -------------------------
+# Build backend and UI
+# -------------------------
 RUN OPENCLAW_A2UI_SKIP_MISSING=1 pnpm build
 ENV OPENCLAW_PREFER_PNPM=1
 RUN pnpm ui:build
 
+# -------------------------
+# Production environment
+# -------------------------
 ENV NODE_ENV=production
-
-# -------------------------
-# Install OpenClaw CLI globally
-# -------------------------
-RUN npm install -g openclaw@latest
-
-# Expose port for Render
 ENV PORT=8080
+
+# -------------------------
+# Add local CLI (from node_modules) to PATH
+# -------------------------
+ENV PATH="/app/node_modules/.bin:$PATH"
+
+# -------------------------
+# Expose port for Render
+# -------------------------
 EXPOSE 8080
 
-# Run the Gateway as the main process
-CMD ["openclaw", "gateway", "--port", "$PORT", "--bind", "custom", "--allow-unconfigured"]
+# -------------------------
+# Start OpenClaw Gateway
+# -------------------------
+CMD ["sh", "-c", "openclaw gateway --port $PORT --bind lan --auth token --token $OPENCLAW_GATEWAY_TOKEN --allow-unconfigured"]
