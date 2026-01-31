@@ -80,4 +80,4 @@ ENV PORT=8080
 EXPOSE 8080
 
 # Run the Gateway as the main process
-CMD ["openclaw", "gateway", "--port", "$PORT", "--allow-unconfigured"]
+CMD ["openclaw", "gateway", "--port", "$PORT", "--bind", "custom", "--allow-unconfigured"]
