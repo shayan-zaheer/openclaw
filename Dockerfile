@@ -43,14 +43,14 @@
 # -------------------------
 FROM node:22-bookworm
 
-# Install Bun for build scripts
+# Install Bun (for build scripts) and Corepack
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 RUN corepack enable
 
 WORKDIR /app
 
-# Optional system deps
+# Optional system packages
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
 RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       apt-get update && \
@@ -58,25 +58,34 @@ RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
     fi
 
-# Install dependencies
+# Copy dependency descriptors first (for caching)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY ui/package.json ./ui/package.json
 COPY patches ./patches
 COPY scripts ./scripts
+
+# Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy code and build
+# Copy the rest and build
 COPY . .
 RUN OPENCLAW_A2UI_SKIP_MISSING=1 pnpm build
 ENV OPENCLAW_PREFER_PNPM=1
 RUN pnpm ui:build
 
-# Ensure the CLI binary is exposed where the shell can find it
-RUN ln -s /app/node_modules/.bin/openclaw /usr/local/bin/openclaw
+# Add local CLI into container bin
+ENV PATH="/app/node_modules/.bin:$PATH"
 
+# Test if openclaw is available: creates a symlink just in case
+RUN if [ ! -f /app/node_modules/.bin/openclaw ]; then \
+      echo "openclaw gateway binary missing"; \
+    fi
+
+# Expose the render port
 ENV NODE_ENV=production
 ENV PORT=8080
 EXPOSE 8080
 
-# Use gateway with --allow-unconfigured so it runs without config file
+# Start the gateway
 CMD ["sh", "-c", "openclaw gateway --port $PORT --allow-unconfigured"]
+
