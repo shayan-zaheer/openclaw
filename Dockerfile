@@ -83,4 +83,4 @@ ENV PORT=8080
 EXPOSE 8080
 
 # Start the gateway
-CMD ["sh", "-c", "openclaw gateway --port $PORT --allow-unconfigured"]
+CMD ["sh", "-c", "openclaw gateway --port $PORT --bind lan --auth token --token $OPENCLAW_GATEWAY_TOKEN --allow-unconfigured"]
