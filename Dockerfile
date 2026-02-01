@@ -43,71 +43,40 @@
 # -------------------------
 FROM node:22-bookworm
 
-# -------------------------
-# Install Bun (for build scripts) and Corepack
-# -------------------------
+# Install Bun for build scripts
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 RUN corepack enable
 
-# -------------------------
-# Working directory
-# -------------------------
 WORKDIR /app
 
-# -------------------------
-# Optional system packages
-# -------------------------
+# Optional system deps
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
 RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES && \
-      apt-get clean && \
-      rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
+      apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
     fi
 
-# -------------------------
-# Copy project files for dependency install
-# -------------------------
+# Install dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY ui/package.json ./ui/package.json
 COPY patches ./patches
 COPY scripts ./scripts
-
-# -------------------------
-# Install dependencies
-# -------------------------
 RUN pnpm install --frozen-lockfile
 
-# -------------------------
-# Copy entire repo
-# -------------------------
+# Copy code and build
 COPY . .
-
-# -------------------------
-# Build backend and UI
-# -------------------------
 RUN OPENCLAW_A2UI_SKIP_MISSING=1 pnpm build
 ENV OPENCLAW_PREFER_PNPM=1
 RUN pnpm ui:build
 
-# -------------------------
-# Production environment
-# -------------------------
+# Ensure the CLI binary is exposed where the shell can find it
+RUN ln -s /app/node_modules/.bin/openclaw /usr/local/bin/openclaw
+
 ENV NODE_ENV=production
 ENV PORT=8080
-
-# -------------------------
-# Add local CLI (from node_modules) to PATH
-# -------------------------
-ENV PATH="/app/node_modules/.bin:$PATH"
-
-# -------------------------
-# Expose port for Render
-# -------------------------
 EXPOSE 8080
 
-# -------------------------
-# Start OpenClaw Gateway
-# -------------------------
-CMD ["sh", "-c", "openclaw gateway --port $PORT --bind lan --auth token --token $OPENCLAW_GATEWAY_TOKEN --allow-unconfigured"]
+# Use gateway with --allow-unconfigured so it runs without config file
+CMD ["sh", "-c", "openclaw gateway --port $PORT --allow-unconfigured"]
