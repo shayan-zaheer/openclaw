@@ -8,10 +8,10 @@ services:
       - key: PORT
         value: "8080"
       - key: SETUP_PASSWORD
-        sync: false # prompts during deploy
+        sync: false
       - key: OPENCLAW_STATE_DIR
         value: /data/.openclaw
       - key: OPENCLAW_WORKSPACE_DIR
         value: /data/workspace
       - key: OPENCLAW_GATEWAY_TOKEN
-        generateValue: true # auto-generates a secure token
+        generateValue: true
